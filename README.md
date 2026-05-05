@@ -11,11 +11,11 @@ Export and archive your Slack workspace conversation history as structured JSON.
 
 ---
 
-Slack Archiver is a lightweight command-line tool that downloads the full conversation history for one or more workspace users. It handles public channels, private channels, direct messages, and group DMs — including thread replies and file metadata — and saves everything as organized JSON files you can search, back up, or process offline.
+Slack Archiver is a lightweight command-line tool that downloads the full conversation history for one or more workspace users. It handles public channels, private channels, direct messages, and group DMs — including thread replies and file attachments — and saves everything as organized JSON files you can search, back up, or process offline.
 
 ## Why Slack Archiver?
 
-- **Complete archives** — messages, threads, and file metadata, not just channel lists
+- **Complete archives** — messages, threads, and file attachments — not just channel lists
 - **Multi-user support** — archive data for multiple users in a single run
 - **Rate-limit aware** — built-in delays and automatic retries keep things smooth
 - **Zero config UI** — just provide tokens and run
@@ -45,7 +45,7 @@ npm install
    |---|---|
    | `conversations:read` | List channels and read message history |
    | `conversations.members` | Check channel membership |
-   | `files:read` | Read file attachment metadata |
+   | `files:read` | Read and download file attachments |
 
 3. Install the app in your workspace and copy the **User OAuth Token** (starts with `xoxp-`).
 
@@ -100,6 +100,26 @@ data/
         └── group-mpim-C10000004.json
 ```
 
+### Attachments
+
+File attachments are downloaded and stored alongside the conversation JSON:
+
+```
+data/
+└── acme_corp-T12345678/
+    └── jane_doe-U87654321/
+        ├── attachments/
+        │   ├── general-C10000001/
+        │   │   ├── F12345_screenshot.png
+        │   │   └── F12346_report.pdf
+        │   └── engineering-private-C10000002/
+        │       └── F12347_architecture.svg
+        ├── _summary.json
+        └── general-C10000001.json
+```
+
+Each file is named `<file_id>_<sanitized_filename>` and stored in a folder per conversation. Downloaded attachment paths are recorded in the `local_path` field of each message's attachment metadata.
+
 ### Summary file
 
 Each user directory contains a `_summary.json`:
@@ -127,7 +147,7 @@ Each conversation is saved as a separate JSON file with the following structure:
 | `created` | `number` | Unix timestamp of channel creation |
 | `topic` | `string \| null` | Channel topic |
 | `message_count` | `number` | Total number of messages downloaded |
-| `messages` | `array` | Full message history with enriched threads and file metadata |
+| `messages` | `array` | Full message history with enriched threads, file metadata, and downloaded attachments |
 
 ## Rate Limiting
 
@@ -136,6 +156,7 @@ Slack Archiver respects Slack's API rate limits:
 - **1.5-second delay** between consecutive API calls
 - **Automatic retry** (up to 3 attempts) with exponential backoff on failure
 - **`retry_after` compliance** — pauses when Slack signals a rate limit
+- **0.5-second delay** between consecutive file downloads
 
 ## Contributing
 
