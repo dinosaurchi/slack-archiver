@@ -1,12 +1,27 @@
 {
-  "name": "slack-archieve",
+  "name": "slack-archiver",
   "version": "1.0.0",
+  "description": "Export and archive Slack workspace conversation history as structured JSON",
+  "license": "MIT",
   "type": "module",
+  "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js"
   },
+  "keywords": [
+    "slack",
+    "archive",
+    "backup",
+    "export",
+    "conversations",
+    "history"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dinosaurchi/slack-archiver.git"
+  },
+  "author": "Tinh-Chi Tran <tinhchi.tran@gmail.com>",
   "dependencies": {
-    "@slack/web-api": "^7.3.4",
-    "dotenv": "^16.4.5"
+    "@slack/web-api": "^7.3.4"
   }
 }

@@ -1,28 +1,55 @@
-# Slack Archieve
+<div align="center">
 
-A command-line tool to archive Slack conversation history for one or more workspace users. Downloads all accessible conversations — including public channels, private channels, direct messages, and group DMs — and saves them as structured JSON files.
+# Slack Archiver
 
-## Features
+Export and archive your Slack workspace conversation history as structured JSON.
 
-- Archives all conversation types (public channels, private channels, DMs, multi-party IMs)
-- Captures full message history with thread replies and file metadata
-- Supports multiple user tokens in a single run
-- Handles Slack API rate limiting with automatic retries
-- Organizes output by workspace and user
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
+
+</div>
+
+---
+
+Slack Archiver is a lightweight command-line tool that downloads the full conversation history for one or more workspace users. It handles public channels, private channels, direct messages, and group DMs — including thread replies and file metadata — and saves everything as organized JSON files you can search, back up, or process offline.
+
+## Why Slack Archiver?
+
+- **Complete archives** — messages, threads, and file metadata, not just channel lists
+- **Multi-user support** — archive data for multiple users in a single run
+- **Rate-limit aware** — built-in delays and automatic retries keep things smooth
+- **Zero config UI** — just provide tokens and run
+- **Structured JSON output** — easy to query, index, or feed into other tools
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or later (ES modules required)
+- **Node.js** v18 or later
+- A Slack User OAuth Token with the required scopes (see [Setup](#setup))
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Install
 
 ```bash
+git clone https://github.com/dinosaurchi/slack-archiver.git
+cd slack-archiver
 npm install
 ```
 
-### 2. Create a secrets file
+### 2. Create a Slack App
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app.
+2. Navigate to **OAuth & Permissions** and add the following **User Token Scopes**:
+
+   | Scope | Purpose |
+   |---|---|
+   | `conversations:read` | List channels and read message history |
+   | `conversations.members` | Check channel membership |
+   | `files:read` | Read file attachment metadata |
+
+3. Install the app in your workspace and copy the **User OAuth Token** (starts with `xoxp-`).
+
+### 3. Configure tokens
 
 Create `.secrets/user-tokens.json` in the project root:
 
@@ -39,19 +66,10 @@ Create `.secrets/user-tokens.json` in the project root:
 ]
 ```
 
-Each entry requires a `token` field. The `name` field is optional and is used for display and output directory naming.
+- `token` — **required**. A Slack User OAuth Token.
+- `name` — optional. Used for display and output directory naming.
 
-### 3. Get a Slack token
-
-You need a Slack User OAuth Token (`xoxp-...`) with the following scopes:
-
-| Scope | Purpose |
-|---|---|
-| `conversations:read` | List and read channel history |
-| `conversations.members` | Check channel membership |
-| `files:read` | Read file metadata |
-
-Create a Slack App at [api.slack.com/apps](https://api.slack.com/apps), assign the scopes above to its User Token Scopes, install it in your workspace, and copy the generated token.
+> **Note:** `.secrets/` is already included in `.gitignore` so tokens are never committed.
 
 ## Usage
 
@@ -65,24 +83,26 @@ Or with Make:
 make archive-history
 ```
 
-The tool will iterate over each token, authenticate, and download all conversations the user belongs to.
+The tool authenticates with each token, discovers all conversations the user belongs to, and downloads the full message history for each one.
 
-## Output Structure
+## Output
 
-Archived data is written to the `data/` directory, organized by workspace and user:
+Archived data is written to `data/`, organized by workspace and user:
 
 ```
 data/
-└── <workspace_name>-<workspace_id>/
-    └── <user_name>-<user_id>/
+└── acme_corp-T12345678/
+    └── jane_doe-U87654321/
         ├── _summary.json
-        ├── general-<channel_id>.json
-        ├── private-channel-<channel_id>.json
-        ├── dm-<channel_id>.json
-        └── ...
+        ├── general-C10000001.json
+        ├── engineering-private-C10000002.json
+        ├── dm-D10000003.json
+        └── group-mpim-C10000004.json
 ```
 
-### Summary file (`_summary.json`)
+### Summary file
+
+Each user directory contains a `_summary.json`:
 
 ```json
 {
@@ -95,24 +115,40 @@ data/
 }
 ```
 
-### Conversation file
+### Conversation files
 
-Each conversation is saved as a separate JSON file containing:
+Each conversation is saved as a separate JSON file with the following structure:
 
-| Field | Description |
-|---|---|
-| `id` | Channel/conversation ID |
-| `name` | Channel name (may be empty for DMs) |
-| `type` | `public_channel`, `private_channel`, `dm`, or `mpim` |
-| `created` | Channel creation timestamp |
-| `topic` | Channel topic (if set) |
-| `message_count` | Total number of messages |
-| `messages` | Full message array, including enriched thread replies and file metadata |
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | Channel or conversation ID |
+| `name` | `string \| null` | Channel name (empty for DMs) |
+| `type` | `string` | `public_channel`, `private_channel`, `dm`, or `mpim` |
+| `created` | `number` | Unix timestamp of channel creation |
+| `topic` | `string \| null` | Channel topic |
+| `message_count` | `number` | Total number of messages downloaded |
+| `messages` | `array` | Full message history with enriched threads and file metadata |
 
 ## Rate Limiting
 
-The tool enforces a 1.5-second delay between API calls and respects Slack's `retry_after` headers when rate limited. Failed requests are retried up to 3 times with exponential backoff.
+Slack Archiver respects Slack's API rate limits:
+
+- **1.5-second delay** between consecutive API calls
+- **Automatic retry** (up to 3 attempts) with exponential backoff on failure
+- **`retry_after` compliance** — pauses when Slack signals a rate limit
+
+## Contributing
+
+Contributions are welcome! To get started:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b my-feature`
+3. Commit your changes: `git commit -m "Add my feature"`
+4. Push to the branch: `git push origin my-feature`
+5. Open a Pull Request
+
+Please make sure your changes are consistent with the existing code style.
 
 ## License
 
-Private — all rights reserved.
+This project is licensed under the [MIT License](LICENSE).
