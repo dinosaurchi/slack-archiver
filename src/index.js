@@ -178,21 +178,26 @@ async function getThreadReplies(channelId, threadTs) {
   return replies;
 }
 
+function normalizeName(name) {
+  return name.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 async function downloadUserData() {
   console.log('Starting Slack data download...\n');
 
   const authInfo = await getUserInfo();
   const workspaceId = authInfo.team_id;
+  const workspaceName = normalizeName(authInfo.team);
   const userId = authInfo.user_id;
 
   console.log(`Workspace: ${authInfo.team}`);
   console.log(`User: ${authInfo.user}\n`);
 
   const userName = authInfo.user;
-  const safeUserName = userName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeUserName = `${normalizeName(userName)}-${userId}`;
 
   const projectRoot = path.join(__dirname, '..');
-  const outputDir = path.join(projectRoot, 'data', workspaceId, safeUserName);
+  const outputDir = path.join(projectRoot, 'data', `${workspaceName}-${workspaceId}`, safeUserName);
   await ensureDir(outputDir);
 
   console.log(`Output directory: ${outputDir}\n`);
@@ -202,6 +207,7 @@ async function downloadUserData() {
 
   for (const conv of conversations) {
     const convType = getConversationType(conv);
+    const convName = conv.name ? `${normalizeName(conv.name)}-${conv.id}` : conv.id;
     console.log(`Processing ${convType}: ${conv.name || conv.id}...`);
 
     try {
@@ -217,7 +223,7 @@ async function downloadUserData() {
         messages
       };
 
-      const fileName = `${conv.id}.json`;
+      const fileName = `${convName}.json`;
       const filePath = path.join(outputDir, fileName);
       fs.writeFileSync(filePath, JSON.stringify(convData, null, 2));
 

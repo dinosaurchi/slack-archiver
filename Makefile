@@ -1,4 +1,4 @@
 .PHONY: archieve-history
 
-archieve-history:
+archive-history:
 	npm start
