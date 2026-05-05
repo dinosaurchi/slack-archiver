@@ -4,3 +4,6 @@
 
 # Data
 data/
+
+# Other
+node_modules
