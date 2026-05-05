@@ -1,0 +1,12 @@
+{
+  "name": "slack-archieve",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@slack/web-api": "^7.3.4",
+    "dotenv": "^16.4.5"
+  }
+}
