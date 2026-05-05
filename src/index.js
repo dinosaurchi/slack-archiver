@@ -2,11 +2,14 @@ import { WebClient } from '@slack/web-api';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const RATE_LIMIT_DELAY = 1500;
+const DOWNLOAD_DELAY = 500;
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -37,6 +40,47 @@ async function ensureDir(dirPath) {
 
 function normalizeName(name) {
   return name.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function sanitizeFilename(name) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+async function downloadAttachment(token, file, attachmentsDir) {
+  try {
+    if (!file.url_private_download) {
+      console.log(`  Warning: No download URL for file ${file.id} (${file.name})`);
+      return null;
+    }
+
+    await ensureDir(attachmentsDir);
+
+    const sanitized = sanitizeFilename(file.name);
+    const filename = `${file.id}_${sanitized}`;
+    const filePath = path.join(attachmentsDir, filename);
+
+    console.log(`  Downloading attachment: ${file.name}`);
+
+    const response = await fetch(file.url_private_download, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      console.log(`  Warning: Failed to download ${file.name}: HTTP ${response.status}`);
+      return null;
+    }
+
+    const fileStream = fs.createWriteStream(filePath);
+    await pipeline(Readable.fromWeb(response.body), fileStream);
+
+    await sleep(DOWNLOAD_DELAY);
+    return filePath;
+  } catch (err) {
+    console.log(`  Warning: Failed to download ${file.name}: ${err.message}`);
+    return null;
+  }
 }
 
 function getConversationType(channel) {
@@ -77,7 +121,7 @@ async function downloadUserData(token, userProvidedName) {
     console.log(`Processing ${convType}: ${conv.name || conv.id}...`);
 
     try {
-      const messages = await getConversationHistory(client, conv.id, convType);
+      const messages = await getConversationHistory(client, conv.id, convType, token, outputDir);
 
       const convData = {
         id: conv.id,
@@ -159,8 +203,9 @@ async function isUserInChannel(client, channelId, userId) {
   }
 }
 
-async function getConversationHistory(client, channelId, channelType) {
+async function getConversationHistory(client, channelId, channelType, token, outputDir) {
   const messages = [];
+  const attachmentsDir = path.join(outputDir, 'attachments', channelId);
   let cursor;
 
   do {
@@ -173,7 +218,7 @@ async function getConversationHistory(client, channelId, channelType) {
     );
 
     for (const msg of result.messages) {
-      const enriched = await enrichMessage(client, msg, channelId, channelType);
+      const enriched = await enrichMessage(client, msg, channelId, channelType, token, attachmentsDir);
       messages.push(enriched);
     }
 
@@ -184,7 +229,7 @@ async function getConversationHistory(client, channelId, channelType) {
   return messages;
 }
 
-async function enrichMessage(client, msg, channelId, channelType) {
+async function enrichMessage(client, msg, channelId, channelType, token, attachmentsDir) {
   const enriched = { ...msg };
 
   if (msg.files && msg.files.length > 0) {
@@ -193,13 +238,21 @@ async function enrichMessage(client, msg, channelId, channelType) {
       name: file.name,
       mime_type: file.mimetype,
       url_private: file.url_private,
+      url_private_download: file.url_private_download,
       size: file.size
     }));
+
+    for (let i = 0; i < msg.files.length; i++) {
+      const localPath = await downloadAttachment(token, msg.files[i], attachmentsDir);
+      if (localPath) {
+        enriched.attachments[i].local_path = localPath;
+      }
+    }
   }
 
   if (msg.reply_count && msg.reply_count > 0) {
     try {
-      const replies = await getThreadReplies(client, channelId, msg.ts);
+      const replies = await getThreadReplies(client, channelId, msg.ts, token, attachmentsDir);
       enriched.thread_replies = replies;
     } catch (err) {
       console.log(`  Warning: Could not fetch thread replies: ${err.message}`);
@@ -209,7 +262,7 @@ async function enrichMessage(client, msg, channelId, channelType) {
   return enriched;
 }
 
-async function getThreadReplies(client, channelId, threadTs) {
+async function getThreadReplies(client, channelId, threadTs, token, attachmentsDir) {
   const replies = [];
   let cursor;
 
@@ -232,8 +285,16 @@ async function getThreadReplies(client, channelId, threadTs) {
             name: file.name,
             mime_type: file.mimetype,
             url_private: file.url_private,
+            url_private_download: file.url_private_download,
             size: file.size
           }));
+
+          for (let i = 0; i < msg.files.length; i++) {
+            const localPath = await downloadAttachment(token, msg.files[i], attachmentsDir);
+            if (localPath) {
+              enriched.attachments[i].local_path = localPath;
+            }
+          }
         }
         replies.push(enriched);
       }
